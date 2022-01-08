@@ -108,12 +108,15 @@ This variable affects both `company-dabbrev' and `company-dabbrev-code'."
 (defun company-dabbrev--search-buffer (regexp pos symbols start limit
                                        ignore-comments)
   (save-excursion
+    (let ((prev-match))
     (cl-labels ((maybe-collect-match
                  ()
                  (let ((match (match-string-no-properties 0)))
                    (when (and (>= (length match) company-dabbrev-minimum-length)
+                              (not (equal match prev-match))
                               (not (and company-dabbrev-ignore-invisible
                                         (invisible-p (match-beginning 0)))))
+                     (setq prev-match match)
                      (push match symbols)))))
       (goto-char (if pos (1- pos) (point-min)))
       ;; Search before pos.
@@ -142,7 +145,7 @@ This variable affects both `company-dabbrev' and `company-dabbrev-code'."
         (if (and ignore-comments (save-match-data (company-in-string-or-comment)))
             (re-search-forward "\\s>\\|\\s!\\|\\s\"" nil t)
           (maybe-collect-match)))
-      symbols)))
+      symbols))))
 
 (defun company-dabbrev--search (regexp &optional limit other-buffer-modes
                                 ignore-comments)
