@@ -558,7 +558,25 @@ You can still invoke `company-complete' manually to run the
 `post-completion' handler, though.
 
 If it's nil, completion will remain active until you type a prefix that
-doesn't match anything or finish it manually, e.g. with RET."
+doesn't match anything or finish it manually, e.g. with RET.
+
+See also `company-abort-on-full-match'."
+  :type 'boolean)
+
+(defcustom company-abort-on-full-match nil
+  "If non-nil, typing a full match aborts completion.
+
+You can still invoke `company-complete' manually to run the
+`post-completion' handler, though.
+
+If it's nil, completion will remain active even if the typed prefix fully
+matches an existing completion. This is different from
+`company-abort-on-unique-match', which only cancels the completion when
+there is only one candidate remaining. The use case for setting this
+to `t' is when you want to e.g. type RET after typing `begin' at the end
+of a line and not have it completed to `BeginWrite' or some other
+candidate that has `begin' as a prefix (the example assumes that `begin'
+is itself an existing candidate in the completion list."
   :type 'boolean)
 
 (defcustom company-require-match 'company-explicit-action-p
@@ -1420,6 +1438,11 @@ update if FORCE-UPDATE."
     ;; Only now apply the predicate and transformers.
     (company--postprocess-candidates candidates)))
 
+(defun company--full-match-p (candidates prefix ignore-case)
+  (if ignore-case
+      (member-ignore-case prefix candidates)
+    (member prefix candidates)))
+
 (defun company--unique-match-p (candidates prefix ignore-case)
   (and candidates
        (not (cdr candidates))
@@ -2018,8 +2041,10 @@ prefix match (same case) will be prioritized."
                           (- company-point (length company-prefix))))
               (company-calculate-candidates new-prefix ignore-case))))
     (cond
-     ((and company-abort-on-unique-match
-           (company--unique-match-p c new-prefix ignore-case))
+     ((or (and company-abort-on-full-match
+               (company--full-match-p c new-prefix ignore-case))
+          (and company-abort-on-unique-match
+               (company--unique-match-p c new-prefix ignore-case)))
       ;; Handle it like completion was aborted, to differentiate from user
       ;; calling one of Company's commands to insert the candidate,
       ;; not to trigger template expansion, etc.
@@ -2060,13 +2085,15 @@ prefix match (same case) will be prioritized."
                   company-backend backend
                   c (company-calculate-candidates company-prefix ignore-case))
             (cond
-             ((and company-abort-on-unique-match
+             ((or (and company-abort-on-full-match
+                       (company--full-match-p c company-prefix ignore-case))
+                  (and company-abort-on-unique-match
                    (company--unique-match-p c company-prefix ignore-case)
                    (if company--manual-action
                        ;; If `company-manual-begin' was called, the user
                        ;; really wants something to happen.  Otherwise...
                        (ignore (message "Sole completion"))
-                     t))
+                     t)))
               ;; ...abort and run the hooks, e.g. to clear the cache.
               (company-cancel 'unique))
              ((null c)
